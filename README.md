@@ -31,8 +31,9 @@ Don't switch the service off and on to pick up changes: done repeatedly, it stop
 the TV reboots. Reinstalling is enough for code changes; a changed `home_redirect.xml` takes
 effect after the next reboot.
 
-Home lands here after Android's ~5 s post-Home delay (covered by the wallpaper). The Recent apps
-button opens a launcher page instead, so it lands here in about a second.
+Home lands here after Android's ~5 s post-Home delay (covered by the wallpaper). Two other
+buttons are quicker because they don't trigger that delay: Recent apps (~1 s) and Live TV (~2 s,
+after Amazon's guide shows its loading screen). Live TV no longer opens the guide.
 
 ## Logos
 

@@ -4,11 +4,12 @@
      screen change, so test from our home screen first. Switching it off and on repeatedly can stop
      it binding at all until the TV reboots.
      Remote keys can't be caught here: Home, Live TV, Settings, Recent apps, Alexa and the app
-     buttons are all handled by Fire OS before accessibility services see them. Recent apps opens a
-     launcher page, though, so it lands here in ~1 s with no Home-press delay. -->
+     buttons are all handled by Fire OS before accessibility services see them. Recent apps and Live
+     TV open Amazon screens this service does watch, though, so both land here in about a second,
+     with no Home-press delay. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewFocused"
-    android:packageNames="com.amazon.tv.launcher,com.lucas.tv_home"
+    android:packageNames="com.amazon.tv.launcher,com.amazon.tv.livetv,com.lucas.tv_home"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:accessibilityFlags="flagReportViewIds"
     android:notificationTimeout="100"

@@ -16,6 +16,9 @@ import android.widget.ImageView
 
 const val FIRE_LAUNCHER = "com.amazon.tv.launcher"
 
+/** Amazon's live TV guide, which the remote's Live TV button opens. That button comes home instead. */
+private const val FIRE_LIVE_TV = "com.amazon.tv.livetv"
+
 /** Views that only exist while Amazon's Settings grid (which lives inside its home screen) shows. */
 private val FIRE_SETTINGS_VIEWS = listOf("settings_search_input", "settings_card_view")
     .map { "$FIRE_LAUNCHER:id/$it" }
@@ -28,6 +31,9 @@ private val FIRE_SETTINGS_VIEWS = listOf("settings_search_input", "settings_card
  *
  * Android holds our launch for ~5 seconds after a Home press, so meanwhile a full-screen copy of
  * our wallpaper covers Amazon's screen and swallows remote presses.
+ *
+ * The Live TV button can't be caught either, but the guide it opens can, and without a Home press
+ * there's no delay, so it makes a quick way home.
  */
 class HomeRedirectService : AccessibilityService() {
     private val handler = Handler(Looper.getMainLooper())
@@ -38,6 +44,10 @@ class HomeRedirectService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         when (event.packageName?.toString()) {
             FIRE_LAUNCHER -> if (cover == null && !isPaused() && !showingFireSettings()) {
+                showCover()
+                openHome()
+            }
+            FIRE_LIVE_TV -> if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED && cover == null) {
                 showCover()
                 openHome()
             }
