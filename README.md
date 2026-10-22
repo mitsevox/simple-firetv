@@ -46,6 +46,9 @@ while Spotify starts playback measured 20–60 ms frames on the TV, against ~14 
 which is what the dock's own animations take. Spotify isn't on the dock any more; it's still in All
 apps, and selecting the track opens it.
 
+On the home screen the remote's play/pause, fast-forward and rewind buttons control Spotify too
+(pause/play, next, previous), wherever focus is; otherwise Fire OS sends them to another player.
+
 ## Logos
 
 `launcher/tool/marks.py` crops each SVG in `launcher/assets/icons` to its ink and lays it out by
