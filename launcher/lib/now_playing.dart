@@ -131,8 +131,11 @@ class NowPlayingStrip extends StatelessWidget {
                   children: [
                     Positioned(left: -left, top: -nowPlayingTop, width: 1920, height: 1080, child: blurredWallpaper),
                     Positioned.fill(child: ColoredBox(color: tint)),
+                    // Keyed, so neither layout's buttons are reused for the other's as one is
+                    // added or removed (that showed the focused play button's fade on Next).
                     if (t < 1)
                       Positioned(
+                        key: const ValueKey('collapsed'),
                         left: _collapsedLeft - left,
                         top: 0,
                         width: _collapsedWidth,
@@ -141,6 +144,7 @@ class NowPlayingStrip extends StatelessWidget {
                       ),
                     if (t > 0)
                       Positioned(
+                        key: const ValueKey('expanded'),
                         left: _expandedLeft - left,
                         top: 0,
                         width: _expandedWidth,
