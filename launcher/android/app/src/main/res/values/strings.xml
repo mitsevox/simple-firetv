@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_redirect_description">Opens Home instead of the Fire TV home screen when you press the Home button.</string>
+</resources>

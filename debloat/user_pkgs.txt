@@ -1,0 +1,13 @@
+com.amazon.avod
+com.amazon.firetv.youtube
+com.amazon.tv.legal.notices.overlay.localisation.common
+com.amazon.tv.parentalcontrols.overlay.localisation.common
+com.amazon.tv.settings.v2.overlay.localisation.common
+com.cbs.ott
+com.disney.disneyplus
+com.hbo.hbonow
+com.hulu.plus
+com.netflix.ninja
+com.peacock.peacockfiretv
+com.spotify.tv.android
+org.jellyfin.androidtv

@@ -1,0 +1,7 @@
+com.amazon.ftvads.deeplinking
+com.amazon.tv.csapp
+com.amazon.device.metrics
+com.amazon.device.crashmanager
+com.amazon.device.logmanager
+com.amazon.device.software.ota
+com.amazon.device.software.ota.override
