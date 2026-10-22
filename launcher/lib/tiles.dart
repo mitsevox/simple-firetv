@@ -84,11 +84,12 @@ class AllAppsTile extends StatelessWidget {
 
 Color _ink(double t) => ink.withValues(alpha: .84 + .16 * t);
 
-/// Places an app's mark at its measured size with its box centred exactly on [center].
-/// [t] runs 0 → 1 as the tile gains focus.
+/// Places an app's mark as tool/marks.py laid it out: its box centred on [center], then moved
+/// down by the mark's optical offset. [t] runs 0 → 1 as the tile gains focus.
 Widget _mark(AppInfo app, Offset center, double t) {
   final brand = brands[app.package];
-  final size = brand?.size ?? const Size.square(_nativeIconSize);
+  final layout = brand?.layout ?? (width: _nativeIconSize, height: _nativeIconSize, dy: 0.0);
+  final size = Size(layout.width, layout.height);
   final Widget mark = brand != null
       ? SvgPicture.asset(
           brand.asset,
@@ -110,7 +111,7 @@ Widget _mark(AppInfo app, Offset center, double t) {
         );
   return Positioned(
     left: center.dx - size.width / 2,
-    top: center.dy - size.height / 2,
+    top: center.dy + layout.dy - size.height / 2,
     width: size.width,
     height: size.height,
     child: Transform.scale(scale: 1 + .06 * t, child: mark),

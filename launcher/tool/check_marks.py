@@ -1,5 +1,5 @@
 """Checks, from a real TV screenshot, that every mark is drawn at its computed size and centred
-exactly in its dock tile.
+exactly where tool/marks.py placed it in its dock tile.
 
 Install a check build first, which draws each mark as a dock tile on black:
   flutter build apk --release --target-platform android-arm --dart-define=MARK_CHECK=true
@@ -70,7 +70,7 @@ for i, name in enumerate(names):
     # Box edges at pixel boundaries: a mark spanning columns 10..20 inclusive is 11 px wide.
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
     w, h = x1 - x0, y1 - y0
-    dx, dy = (x0 + x1) / 2 - CENTER_X, (y0 + y1) / 2 - CENTER_Y
+    dx, dy = (x0 + x1) / 2 - CENTER_X, (y0 + y1) / 2 - (CENTER_Y + expected[name]["dy"])
     ew, eh = expected[name]["width"], expected[name]["height"]
     dw, dh = w - ew, h - eh
     ok = all(abs(v) <= TOLERANCE for v in (dx, dy)) and all(abs(v) <= TOLERANCE + 1 for v in (dw, dh))

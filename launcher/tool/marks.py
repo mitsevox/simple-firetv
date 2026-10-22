@@ -1,41 +1,62 @@
-"""Measures every brand mark and sizes them all by one optical rule.
+"""Measures every brand mark and lays them out optically, by kind, with per-mark nudges.
 
-For each SVG in assets/icons (except the utility icons), this renders it at 4096 px, finds the
-exact extent of its ink, and writes a copy to assets/marks with the viewBox cropped to that ink,
-so a mark's box *is* its visible shape. It then sizes every mark by:
+For each SVG in assets/icons (except the utility icons), this renders it at high resolution,
+crops a copy to its ink (assets/marks), and measures it. Then it sizes and places each mark by
+what kind of mark it is, because people read wordmarks like text and symbols like shapes:
 
-  1. Equal area: width * height = AREA, so a wide wordmark gets shorter rather than bigger.
-  2. Density: marks with sparse ink (outlines, thin strokes) look lighter than solid ones, so they
-     are scaled by (median coverage / coverage) ** DENSITY_EXPONENT.
-  3. Limits: shrink to fit within MAX_W x MAX_H.
+  word    Lowercase wordmarks (max, hulu, tubi). Every one gets the same x-height and sits on a
+          shared baseline, with the x-height band centred in the tile. Ascenders rise above it.
+  symbol  Shapes. Sized so their silhouette (the convex hull of their ink, the shape a rubber
+          band around them makes, so an outline icon counts as the shape it draws) has the same
+          area, capped in height so tall, narrow marks don't tower. Centred between their box
+          and their silhouette's centre of mass.
+  width   Marks with no real area, like Prime's smile: given a width directly.
 
-Sizes go to lib/mark_sizes.dart. A contact sheet of the result goes to build/marks-sheet.png.
+NUDGES then adjusts individual marks by eye: `scale` multiplies the size, `dy` moves the mark
+down (design px). These are the case-by-case optical corrections no rule captures.
 
-Run from the project root:  python3 tool/marks.py
+Writes lib/mark_sizes.dart, build/marks.json, and build/marks-sheet.png: the marks in a dock row
+at true size, with the tile centre line (red) and the wordmark baseline and x-height (blue).
+
+Run from the launcher folder:  python3 tool/marks.py
 """
 
 from __future__ import annotations
 
+import io
 import json
 import re
-import statistics
 import subprocess
-import sys
 from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
 
-AREA = 3600.0  # a square mark renders at 60 x 60 design px
-DENSITY_EXPONENT = 0.25
+X_HEIGHT = 27.0  # every wordmark's lowercase height, design px
+SYMBOL_AREA = 2500.0  # silhouette area of every symbol, design px²
+SYMBOL_MAX_H = 58.0
 MAX_W = 136.0
-MAX_H = 72.0
-RENDER_PX = 4096
+CENTROID_PULL = 0.5  # 0 centres a symbol by its box, 1 by its silhouette's centre of mass
+
+KINDS = {
+    "hbomax": "word",
+    "hulu": "word",
+    "tubi": "word",
+    "primevideo": "width",
+}
+WIDTHS = {"primevideo": 112.0}
+NUDGES: dict[str, dict[str, float]] = {
+    "netflix": {"scale": 0.9},  # tall and solid: reads larger than its area
+    "jellyfin": {"scale": 0.9},  # bold triangle at full height towers over the row
+    "disneyplus": {"scale": 1.08},  # thin script reads lighter than its silhouette
+}
+
+RENDER_PX = 2048
 ALPHA_THRESHOLD = 8  # of 255; ignores the faintest antialiasing
 UTILITY = {"apps", "art", "settings", "home"}
 
 # Must match the dock tile in lib/tiles.dart.
-TILE_W, TILE_H, MARK_CENTER_Y = 224, 176, 88
+TILE_W, TILE_H, CENTER_Y = 224, 176, 88
 
 root = Path(__file__).resolve().parent.parent
 src_dir = root / "assets" / "icons"
@@ -46,17 +67,43 @@ build_dir.mkdir(exist_ok=True)
 
 
 def render(svg: Path, width: int, height: int | None = None) -> np.ndarray:
-    args = ["rsvg-convert", "-w", str(width)]
-    if height:
-        args += ["-h", str(height)]
+    args = ["rsvg-convert", "-w", str(width)] + (["-h", str(height)] if height else [])
     png = subprocess.run(args + [str(svg)], capture_output=True, check=True).stdout
-    tmp = build_dir / "_mark.png"
-    tmp.write_bytes(png)
-    return np.asarray(Image.open(tmp).convert("RGBA"))
+    return np.asarray(Image.open(io.BytesIO(png)).convert("RGBA"))
 
 
 def viewbox(text: str) -> list[float]:
     return [float(v) for v in re.search(r'viewBox="([^"]+)"', text).group(1).replace(",", " ").split()]
+
+
+def silhouette(ink: np.ndarray) -> np.ndarray:
+    """The convex hull of the ink, filled."""
+    ys, xs = np.nonzero(ink)
+    # Each row's leftmost and rightmost ink is enough to find the hull.
+    points = sorted({(int(x), int(y)) for y in np.unique(ys)
+                     for x in (xs[ys == y].min(), xs[ys == y].max() + 1)})
+
+    def half(pts):
+        out = []
+        for p in pts:
+            while len(out) >= 2 and (out[-1][0] - out[-2][0]) * (p[1] - out[-2][1]) - (out[-1][1] - out[-2][1]) * (p[0] - out[-2][0]) <= 0:
+                out.pop()
+            out.append(p)
+        return out
+
+    hull = half(points)[:-1] + half(points[::-1])[:-1]
+    mask = Image.new("1", (ink.shape[1], ink.shape[0]))
+    ImageDraw.Draw(mask).polygon(hull, fill=1)
+    return np.asarray(mask)
+
+
+def x_height_fraction(ink: np.ndarray) -> float:
+    """Fraction of a wordmark's height taken by its lowercase letters, from the row profile: the
+    x-height band is where rows are densely inked, ascenders above it are sparse stems."""
+    rows = ink.mean(1)
+    dense = rows > 0.6 * np.median(rows[len(rows) // 2:])
+    top = int(np.argmax(dense))
+    return (len(rows) - top) / len(rows)
 
 
 marks = {}
@@ -67,58 +114,79 @@ for svg in sorted(src_dir.glob("*.svg")):
     text = svg.read_text()
     vx, vy, vw, vh = viewbox(text)
     alpha = render(svg, RENDER_PX)[:, :, 3]
-    scale = alpha.shape[1] / vw  # rendered px per viewBox unit
+    scale = alpha.shape[1] / vw
     ys, xs = np.nonzero(alpha > ALPHA_THRESHOLD)
     x0, x1, y0, y1 = xs.min(), xs.max() + 1, ys.min(), ys.max() + 1
-    ink = alpha[y0:y1, x0:x1].astype(np.float64).sum() / 255
-    coverage = ink / ((x1 - x0) * (y1 - y0))
+    ink = alpha[y0:y1, x0:x1] > ALPHA_THRESHOLD
 
     crop = [vx + x0 / scale, vy + y0 / scale, (x1 - x0) / scale, (y1 - y0) / scale]
     cropped = re.sub(r'viewBox="[^"]+"', 'viewBox="%s"' % " ".join(f"{v:.4f}" for v in crop), text, count=1)
     (out_dir / svg.name).write_text(cropped)
-    marks[name] = {"aspect": crop[2] / crop[3], "coverage": coverage}
 
-median_coverage = statistics.median(m["coverage"] for m in marks.values())
-for m in marks.values():
-    h = (AREA / m["aspect"]) ** 0.5
-    w = h * m["aspect"]
-    k = (median_coverage / m["coverage"]) ** DENSITY_EXPONENT
-    w, h = w * k, h * k
-    fit = min(1.0, MAX_W / w, MAX_H / h)
-    m["width"], m["height"] = round(w * fit, 2), round(h * fit, 2)
+    kind = KINDS.get(name, "symbol")
+    aspect = crop[2] / crop[3]
+    m = {"kind": kind, "aspect": aspect}
+    if kind == "word":
+        m["x_height"] = x_height_fraction(ink)
+        h = X_HEIGHT / m["x_height"]
+        w = h * aspect
+        # Put the baseline X_HEIGHT/2 below the tile centre: box-centred top is -h/2.
+        dy = X_HEIGHT / 2 - h / 2
+    elif kind == "width":
+        w = WIDTHS[name]
+        h = w / aspect
+        dy = 0.0
+    else:
+        shape = silhouette(ink)
+        m["fill"] = float(shape.mean())
+        h = (SYMBOL_AREA / (aspect * m["fill"])) ** 0.5
+        h = min(h, SYMBOL_MAX_H)
+        w = h * aspect
+        cy = np.nonzero(shape)[0].mean() / shape.shape[0]  # 0.5 is the box centre
+        dy = -CENTROID_PULL * (cy - 0.5) * h
+    if w > MAX_W:
+        h, w, dy = h * MAX_W / w, MAX_W, dy * MAX_W / w
+
+    nudge = NUDGES.get(name, {})
+    k = nudge.get("scale", 1.0)
+    m["width"], m["height"] = round(w * k, 2), round(h * k, 2)
+    m["dy"] = round(dy * k + nudge.get("dy", 0.0), 2)
+    marks[name] = m
 
 lines = [
     "// Generated by tool/marks.py from assets/icons. Do not edit; rerun the script instead.",
-    "import 'dart:ui';",
     "",
-    "/// Display size of each mark in assets/marks, in design px.",
-    "const markSizes = <String, Size>{",
-    *[f"  '{n}': Size({m['width']}, {m['height']})," for n, m in marks.items()],
+    "/// Each mark in assets/marks: its size, and how far below the tile centre to place its box's",
+    "/// centre, in design px.",
+    "const markLayouts = <String, ({double width, double height, double dy})>{",
+    *[f"  '{n}': (width: {m['width']}, height: {m['height']}, dy: {m['dy']})," for n, m in marks.items()],
     "};",
     "",
 ]
 (root / "lib" / "mark_sizes.dart").write_text("\n".join(lines))
 (build_dir / "marks.json").write_text(json.dumps(marks, indent=2))
 
-# Contact sheet: each mark at its computed size, centered in a dock tile, with guides.
-cols = 6
-rows = -(-len(marks) // cols)
-sheet = Image.new("RGB", (cols * TILE_W, rows * TILE_H), (20, 24, 28))
+# Sheet: the dock's marks in a row at true size on dock glass, with guides.
+order = ["netflix", "youtube", "disneyplus", "hbomax", "hulu", "primevideo", "spotify", "airplay",
+         "jellyfin", "peacock", "paramountplus", "tubi", "appletv", "stremio"]
+order = [n for n in order if n in marks]
+sheet = Image.new("RGB", (len(order) * TILE_W, TILE_H), (34, 40, 48))
 draw = ImageDraw.Draw(sheet)
-for i, (name, m) in enumerate(marks.items()):
-    ox, oy = (i % cols) * TILE_W, (i // cols) * TILE_H
-    draw.rectangle([ox, oy, ox + TILE_W - 1, oy + TILE_H - 1], outline=(45, 50, 56))
-    draw.line([ox, oy + MARK_CENTER_Y, ox + TILE_W, oy + MARK_CENTER_Y], fill=(60, 40, 40))
-    draw.line([ox + TILE_W // 2, oy, ox + TILE_W // 2, oy + TILE_H], fill=(60, 40, 40))
+baseline = CENTER_Y + X_HEIGHT / 2
+for y, color in ((CENTER_Y, (110, 50, 50)), (baseline, (50, 70, 120)), (baseline - X_HEIGHT, (50, 70, 120))):
+    draw.line([0, y, sheet.width, y], fill=color)
+for i, name in enumerate(order):
+    m = marks[name]
     w, h = round(m["width"]), round(m["height"])
-    glyph = Image.fromarray(render(out_dir / f"{name}.svg", w, h))
-    white = Image.new("RGBA", glyph.size, (244, 244, 241, 255))
-    white.putalpha(glyph.getchannel("A"))
-    sheet.paste(white, (ox + (TILE_W - w) // 2, oy + MARK_CENTER_Y - h // 2), white)
-    draw.text((ox + 8, oy + TILE_H - 18), name, fill=(120, 126, 132))
+    glyph = render(out_dir / f"{name}.svg", w, h)
+    white = Image.new("RGBA", (w, h), (244, 244, 241, 255))
+    white.putalpha(Image.fromarray(glyph[:, :, 3]))
+    left = i * TILE_W + (TILE_W - w) // 2
+    top = round(CENTER_Y + m["dy"] - h / 2)
+    sheet.paste(white, (left, top), white)
+    draw.text((i * TILE_W + 8, TILE_H - 16), name, fill=(110, 116, 122))
 sheet.save(build_dir / "marks-sheet.png")
-(build_dir / "_mark.png").unlink()
 
-print(f"median coverage {median_coverage:.3f}")
 for n, m in marks.items():
-    print(f"{n:14} aspect {m['aspect']:5.2f}  coverage {m['coverage']:.3f}  ->  {m['width']:6.2f} x {m['height']:5.2f}")
+    extra = f"x-height {m['x_height']:.2f}" if "x_height" in m else (f"fill {m['fill']:.2f}" if "fill" in m else "")
+    print(f"{n:14} {m['kind']:6} {m['width']:6.1f} x {m['height']:5.1f}  dy {m['dy']:+5.1f}   {extra}")

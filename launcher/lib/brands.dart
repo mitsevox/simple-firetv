@@ -1,10 +1,8 @@
-import 'dart:ui';
-
 import 'mark_sizes.dart';
 
 /// White marks, keyed by Fire TV package name. Apps without one fall back to their installed icon.
 /// assets/marks holds copies of assets/icons cropped to their ink by tool/marks.py, which also
-/// works out each one's display size.
+/// works out each one's layout.
 class Brand {
   const Brand(this.icon, this.name);
 
@@ -13,7 +11,7 @@ class Brand {
 
   String get asset => 'assets/marks/$icon.svg';
 
-  Size get size => markSizes[icon]!;
+  ({double width, double height, double dy}) get layout => markLayouts[icon]!;
 }
 
 const brands = <String, Brand>{
