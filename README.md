@@ -37,8 +37,9 @@ after Amazon's guide shows its loading screen). Live TV no longer opens the guid
 
 ## Logos
 
-`launcher/tool/marks.py` crops each SVG in `launcher/assets/icons` to its ink and sizes every logo
-by one rule, writing `assets/marks/` and `lib/mark_sizes.dart`. `launcher/tool/check_marks.py`
+`launcher/tool/marks.py` crops each SVG in `launcher/assets/icons` to its ink and lays it out by
+kind (wordmarks on a shared baseline and x-height, symbols by silhouette area), plus per-logo
+optical nudges in `NUDGES`, writing `assets/marks/` and `lib/mark_sizes.dart`. `launcher/tool/check_marks.py`
 measures the result from a real TV screenshot (see its docstring for the check build).
 
 Wallpapers are from Unsplash, logos from Simple Icons (CC0) and Custom Brand Icons (MIT), and the
