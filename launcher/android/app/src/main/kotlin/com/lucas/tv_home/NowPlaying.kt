@@ -16,9 +16,6 @@ import java.io.ByteArrayOutputStream
 
 const val SPOTIFY = "com.spotify.tv.android"
 private const val ART_SIZE = 144
-// Spotify sends its own logo as the art for a moment when playback starts or stops, so a new image
-// only replaces the shown one once it has held this long.
-private const val ART_SETTLE_MS = 1_000L
 
 /**
  * Follows Spotify's media session and sends each change to Flutter as `update`. The last track is
@@ -32,16 +29,6 @@ class NowPlaying(private val context: Context, private val channel: MethodChanne
     private var started = false
     private var controller: MediaController? = null
     private var shownArt: Bitmap? = null
-    private var pendingArt: Bitmap? = null
-    private var artPending = false
-    private val commitArt = Runnable {
-        artPending = false
-        shownArt = pendingArt
-        val edit = prefs.edit()
-        shownArt?.let { edit.putString("art", Base64.encodeToString(toPng(it), Base64.NO_WRAP)) } ?: edit.remove("art")
-        edit.apply()
-        send()
-    }
 
     private val callback = object : MediaController.Callback() {
         override fun onPlaybackStateChanged(state: PlaybackState?) = send()
@@ -71,7 +58,6 @@ class NowPlaying(private val context: Context, private val channel: MethodChanne
     }
 
     fun stop() {
-        handler.removeCallbacks(commitArt)
         if (started) sessions.removeOnActiveSessionsChangedListener(sessionsChanged)
         attach(null)
         started = false
@@ -138,23 +124,17 @@ class NowPlaying(private val context: Context, private val channel: MethodChanne
             .putString("album", album)
             .putLong("durationMs", metadata.getLong(MediaMetadata.METADATA_KEY_DURATION))
             .apply()
-        // Compared by pixels, not by track: Spotify sends a new title before the new art.
+        // Spotify alternates updates with the cover and ones with only its logo as the display
+        // icon, so the icon is never used and an update without a cover keeps the current one.
+        // Compared by pixels, not by track: Spotify sends a new title before the new cover.
         val art = (metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
-            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
-            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON))
+            ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART))
             ?.let { Bitmap.createScaledBitmap(it, ART_SIZE, ART_SIZE, true) }
-        if (same(art, shownArt)) {
-            handler.removeCallbacks(commitArt)
-            artPending = false
-        } else if (!artPending || !same(art, pendingArt)) {
-            pendingArt = art
-            artPending = true
-            handler.removeCallbacks(commitArt)
-            handler.postDelayed(commitArt, ART_SETTLE_MS)
-        }
+            ?: return
+        if (shownArt?.sameAs(art) == true) return
+        shownArt = art
+        prefs.edit().putString("art", Base64.encodeToString(toPng(art), Base64.NO_WRAP)).apply()
     }
-
-    private fun same(a: Bitmap?, b: Bitmap?) = if (a == null || b == null) a == b else a.sameAs(b)
 
     private fun toPng(bitmap: Bitmap): ByteArray =
         ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()

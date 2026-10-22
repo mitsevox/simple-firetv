@@ -4,6 +4,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import 'style.dart';
 
@@ -306,7 +307,15 @@ class _Art extends StatelessWidget {
         child: art == null
             ? ColoredBox(
                 color: Colors.white.withValues(alpha: .12),
-                child: Icon(Icons.music_note_rounded, size: 32, color: ink.withValues(alpha: .6)),
+                // Nothing has played yet, so Spotify's own mark stands in for a cover.
+                child: Center(
+                  child: SvgPicture.asset(
+                    'assets/icons/spotify.svg',
+                    width: 40,
+                    height: 40,
+                    colorFilter: ColorFilter.mode(ink.withValues(alpha: .84), BlendMode.srcIn),
+                  ),
+                ),
               )
             : Image.memory(art!, fit: BoxFit.cover, gaplessPlayback: true, filterQuality: FilterQuality.medium),
       ),
