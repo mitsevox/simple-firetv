@@ -20,7 +20,14 @@ enum Zone { dock, controls, allApps, settings, exitPrompt }
 const _dockLeft = 208.0;
 // Bottom edge stays where CleanFrame's taller labelled dock ended (908).
 const _dockTop = 908.0 - dockTileHeight;
-const _shelfWidth = 1472.0;
+const _dockWidth = 1504.0;
+// The first and last tiles sit this far in from the dock's edges; scrolled tiles run to the edge.
+const _shelfInset = 16.0;
+const _shelfWidth = _dockWidth - 2 * _shelfInset;
+// Where the dock can scroll further, tiles fade to nothing over this distance from its edge: fully
+// clear for the outer _dockFadeClear px, then easing in, so nothing is visible where it's cut off.
+const _dockFade = 160.0;
+const _dockFadeClear = 24.0;
 const _gridTop = 200.0;
 const _gridColumns = 5;
 const _gridVisibleRows = 3;
@@ -167,7 +174,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         } else if (dx != 0 && _apps.dock.isNotEmpty) {
           _dockIndex = (_dockIndex + dx).clamp(0, _apps.dock.length - 1);
           _dockOffset = _scrollToShow(_dockIndex * dockTileWidth, dockTileWidth, _dockOffset, _shelfWidth,
-              _apps.dock.length * dockTileWidth);
+              _apps.dock.length * dockTileWidth, margin: _dockFade - _shelfInset);
         }
       case Zone.controls:
         if (dy > 0) {
@@ -195,10 +202,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Scrolls just enough to bring an item fully into view, never past either end.
-  static double _scrollToShow(double start, double size, double offset, double viewport, double total) {
-    if (start < offset) offset = start;
-    if (start + size > offset + viewport) offset = start + size - viewport;
+  /// Scrolls just enough to bring an item fully into view, at least [margin] in from either edge
+  /// (so it stays clear of the fades), never past either end.
+  static double _scrollToShow(double start, double size, double offset, double viewport, double total,
+      {double margin = 0}) {
+    if (start - margin < offset) offset = start - margin;
+    if (start + size + margin > offset + viewport) offset = start + size + margin - viewport;
     return offset.clamp(0, max(0, total - viewport));
   }
 
@@ -279,7 +288,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             Positioned(left: 112, top: 72, child: _clockAndWeather()),
             Positioned(right: 112, top: 72, child: _controlRow()),
-            Positioned(left: _dockLeft, top: _dockTop, width: 1504, height: dockTileHeight, child: _dock()),
+            Positioned(left: _dockLeft, top: _dockTop, width: _dockWidth, height: dockTileHeight, child: _dock()),
             if (wallpaper != null && !panelOpen)
               Positioned(
                 right: 112,
@@ -369,7 +378,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final total = dock.length * dockTileWidth;
     final fadeLeft = _dockOffset > 0;
     final fadeRight = _dockOffset < total - _shelfWidth;
-    const edge = 132 / _shelfWidth;
+    final (fadeStops, fadeAlphas) = _fadeCurve();
     final light = _wallpapers.frame?.info.light ?? false;
 
     return ClipRRect(
@@ -381,23 +390,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           Positioned.fill(
             child: ColoredBox(color: const Color(0xFF080E12).withValues(alpha: light ? .27 : .16)),
           ),
-          Positioned(
-            left: 16,
-            top: 0,
-            bottom: 0,
-            width: _shelfWidth,
+          // Spans the whole dock so anything scrolled out is cut by the dock's own edge, where the
+          // fade has already taken it to nothing.
+          Positioned.fill(
             child: dock.isEmpty
                 ? Center(child: Text('Add apps from All apps', style: type(36, spacing: -.6)))
                 : ShaderMask(
                     blendMode: BlendMode.dstIn,
                     shaderCallback: (rect) => LinearGradient(
                       colors: [
-                        Colors.white.withValues(alpha: fadeLeft ? .2 : 1),
-                        Colors.white,
-                        Colors.white,
-                        Colors.white.withValues(alpha: fadeRight ? .2 : 1),
+                        for (final a in fadeAlphas) Colors.white.withValues(alpha: fadeLeft ? a : 1),
+                        for (final a in fadeAlphas.reversed) Colors.white.withValues(alpha: fadeRight ? a : 1),
                       ],
-                      stops: const [0, edge, 1 - edge, 1],
+                      stops: [...fadeStops, for (final t in fadeStops.reversed) 1 - t],
                     ).createShader(rect),
                     child: ClipRect(
                       child: Stack(
@@ -405,7 +410,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           AnimatedPositioned(
                             duration: moveDuration,
                             curve: ease,
-                            left: -_dockOffset,
+                            left: _shelfInset - _dockOffset,
                             top: 0,
                             width: total,
                             height: dockTileHeight,
@@ -428,6 +433,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ],
       ),
     );
+  }
+
+  /// Gradient stops (as fractions of the dock's width) and alphas for one edge of the dock fade:
+  /// clear for [_dockFadeClear], then a smoothstep up to full opacity at [_dockFade].
+  static (List<double>, List<double>) _fadeCurve() {
+    const steps = 8;
+    final stops = <double>[0];
+    final alphas = <double>[0];
+    for (var i = 0; i <= steps; i++) {
+      final t = i / steps;
+      stops.add((_dockFadeClear + t * (_dockFade - _dockFadeClear)) / _dockWidth);
+      alphas.add(t * t * (3 - 2 * t));
+    }
+    return (stops, alphas);
   }
 
   Widget _panelBackdrop() => Stack(
