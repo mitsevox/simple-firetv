@@ -5,10 +5,11 @@ import 'apps.dart';
 import 'brands.dart';
 import 'style.dart';
 
-// Dock tiles are logo-only. The mark centre must match MARK_CENTER_Y in tool/marks.py.
+// Dock tiles are logo-only, at least this wide; the dock stretches them to fill its width. The
+// mark centre height must match MARK_CENTER_Y in tool/marks.py.
 const dockTileWidth = 224.0;
 const dockTileHeight = 176.0;
-const _dockMarkCenter = Offset(dockTileWidth / 2, 88);
+const _dockMarkCenterY = 88.0;
 
 // All apps tiles keep names, since apps without a mark need them.
 const gridTileWidth = 288.0;
@@ -19,20 +20,21 @@ const _nativeIconSize = 64.0;
 
 /// A logo-only app in the dock.
 class DockTile extends StatelessWidget {
-  const DockTile({super.key, required this.app, required this.focused});
+  const DockTile({super.key, required this.app, required this.focused, this.width = dockTileWidth});
 
   final AppInfo app;
   final bool focused;
+  final double width;
 
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      width: dockTileWidth,
+      width: width,
       height: dockTileHeight,
       child: _Focusable(
         focused: focused,
-        plate: const Rect.fromLTWH(0, 16, dockTileWidth, 144),
-        builder: (t) => [_mark(app, _dockMarkCenter, t)],
+        plate: Rect.fromLTWH(0, 16, width, 144),
+        builder: (t) => [_mark(app, Offset(width / 2, _dockMarkCenterY), t)],
       ),
     );
   }

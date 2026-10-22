@@ -22,13 +22,10 @@ const _dockLeft = 208.0;
 // Bottom edge stays where CleanFrame's taller labelled dock ended (908).
 const _dockTop = 908.0 - dockTileHeight;
 const _dockWidth = 1504.0;
-// The first and last tiles sit this far in from the dock's edges; scrolled tiles run to the edge.
+// The first and last tiles sit this far in from the dock's edges; scrolled tiles run to the edge,
+// where the dock cuts them off, so a partly shown tile says there's more that way.
 const _shelfInset = 16.0;
 const _shelfWidth = _dockWidth - 2 * _shelfInset;
-// Where the dock can scroll further, tiles fade to nothing over this distance from its edge: fully
-// clear for the outer _dockFadeClear px, then easing in, so nothing is visible where it's cut off.
-const _dockFade = 160.0;
-const _dockFadeClear = 24.0;
 const _gridTop = 200.0;
 const _gridColumns = 5;
 const _gridVisibleRows = 3;
@@ -132,9 +129,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  /// Tiles stretch to fill the dock exactly when they all fit, and keep their minimum width when
+  /// there are too many.
+  double get _dockTileWidth => max(dockTileWidth, _shelfWidth / max(1, _apps.dock.length));
+
   void _scrollDockToFocus() {
-    _dockOffset = _scrollToShow(_dockIndex * dockTileWidth, dockTileWidth, _dockOffset, _shelfWidth,
-        _apps.dock.length * dockTileWidth, margin: _dockFade - _shelfInset);
+    _dockOffset = _scrollToShow(_dockIndex * _dockTileWidth, _dockTileWidth, _dockOffset, _shelfWidth,
+        _apps.dock.length * _dockTileWidth);
   }
 
   void _changed() => setState(() {
@@ -232,12 +233,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
-  /// Scrolls just enough to bring an item fully into view, at least [margin] in from either edge
-  /// (so it stays clear of the fades), never past either end.
-  static double _scrollToShow(double start, double size, double offset, double viewport, double total,
-      {double margin = 0}) {
-    if (start - margin < offset) offset = start - margin;
-    if (start + size + margin > offset + viewport) offset = start + size + margin - viewport;
+  /// Scrolls just enough to bring an item fully into view, never past either end.
+  static double _scrollToShow(double start, double size, double offset, double viewport, double total) {
+    if (start < offset) offset = start;
+    if (start + size > offset + viewport) offset = start + size - viewport;
     return offset.clamp(0, max(0, total - viewport));
   }
 
@@ -434,10 +433,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _dock() {
     final dock = _apps.dock;
-    final total = dock.length * dockTileWidth;
-    final fadeLeft = _dockOffset > 0;
-    final fadeRight = _dockOffset < total - _shelfWidth;
-    final (fadeStops, fadeAlphas) = _fadeCurve();
+    final tileWidth = _dockTileWidth;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(48),
@@ -446,63 +442,37 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           // Lines the blur up with the photo behind it, so the glass looks see-through.
           Positioned(left: -_dockLeft, top: -_dockTop, width: 1920, height: 1080, child: _blurredWallpaper()),
           Positioned.fill(child: ColoredBox(color: _glassTint)),
-          // Spans the whole dock so anything scrolled out is cut by the dock's own edge, where the
-          // fade has already taken it to nothing.
+          // Spans the whole dock so anything scrolled out is cut by the dock's own rounded edge.
           Positioned.fill(
             child: dock.isEmpty
                 ? Center(child: Text('Add apps from All apps', style: type(36, spacing: -.6)))
-                : ShaderMask(
-                    blendMode: BlendMode.dstIn,
-                    shaderCallback: (rect) => LinearGradient(
-                      colors: [
-                        for (final a in fadeAlphas) Colors.white.withValues(alpha: fadeLeft ? a : 1),
-                        for (final a in fadeAlphas.reversed) Colors.white.withValues(alpha: fadeRight ? a : 1),
-                      ],
-                      stops: [...fadeStops, for (final t in fadeStops.reversed) 1 - t],
-                    ).createShader(rect),
-                    child: ClipRect(
-                      child: Stack(
-                        children: [
-                          AnimatedPositioned(
-                            duration: moveDuration,
-                            curve: ease,
-                            left: _shelfInset - _dockOffset,
-                            top: 0,
-                            width: total,
-                            height: dockTileHeight,
-                            child: Row(
-                              children: [
-                                for (final (i, app) in dock.indexed)
-                                  DockTile(
-                                    key: ValueKey(app.package),
-                                    app: app,
-                                    focused: _zone == Zone.dock && _dockIndex == i,
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
+                : Stack(
+                    children: [
+                      AnimatedPositioned(
+                        duration: moveDuration,
+                        curve: ease,
+                        left: _shelfInset - _dockOffset,
+                        top: 0,
+                        width: dock.length * tileWidth,
+                        height: dockTileHeight,
+                        child: Row(
+                          children: [
+                            for (final (i, app) in dock.indexed)
+                              DockTile(
+                                key: ValueKey(app.package),
+                                app: app,
+                                focused: _zone == Zone.dock && _dockIndex == i,
+                                width: tileWidth,
+                              ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
           ),
         ],
       ),
     );
-  }
-
-  /// Gradient stops (as fractions of the dock's width) and alphas for one edge of the dock fade:
-  /// clear for [_dockFadeClear], then a smoothstep up to full opacity at [_dockFade].
-  static (List<double>, List<double>) _fadeCurve() {
-    const steps = 8;
-    final stops = <double>[0];
-    final alphas = <double>[0];
-    for (var i = 0; i <= steps; i++) {
-      final t = i / steps;
-      stops.add((_dockFadeClear + t * (_dockFade - _dockFadeClear)) / _dockWidth);
-      alphas.add(t * t * (3 - 2 * t));
-    }
-    return (stops, alphas);
   }
 
   Widget _panelBackdrop() => Stack(
