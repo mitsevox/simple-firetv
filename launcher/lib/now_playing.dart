@@ -186,7 +186,6 @@ class NowPlayingStrip extends StatelessWidget {
         _Button(
           icon: store.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
           focused: _isFocused(NowPlayingItem.playPause),
-          primary: true,
         ),
         const SizedBox(width: 6),
         _Button(icon: Icons.skip_next_rounded, focused: _isFocused(NowPlayingItem.next)),
@@ -224,7 +223,6 @@ class NowPlayingStrip extends StatelessWidget {
         _Button(
           icon: store.playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
           focused: _isFocused(NowPlayingItem.playPause),
-          primary: true,
         ),
         const SizedBox(width: 28),
       ],
@@ -323,13 +321,12 @@ class _Art extends StatelessWidget {
   }
 }
 
-/// A round control: plain icon, the frosted plate if it's the main one, solid when focused.
+/// A round control: a plain icon, solid when focused.
 class _Button extends StatelessWidget {
-  const _Button({required this.icon, required this.focused, this.primary = false});
+  const _Button({required this.icon, required this.focused});
 
   final IconData icon;
   final bool focused;
-  final bool primary;
 
   @override
   Widget build(BuildContext context) {
@@ -339,7 +336,7 @@ class _Button extends StatelessWidget {
       height: 56,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: focused ? solid : Colors.white.withValues(alpha: primary ? .2 : 0),
+        color: focused ? solid : solid.withValues(alpha: 0),
       ),
       child: Icon(icon, size: 32, color: focused ? solidInk : ink),
     );
