@@ -18,12 +18,21 @@ adb connect 192.168.50.76:5555
 adb -s 192.168.50.76:5555 install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
-The Home redirect is an accessibility service. Turn it on once after the first install:
+The Home redirect is an accessibility service, and the dock orders itself by usage stats. Turn
+both on once after the first install:
 
 ```sh
 adb -s 192.168.50.76:5555 shell settings put secure enabled_accessibility_services com.lucas.tv_home/com.lucas.tv_home.HomeRedirectService
 adb -s 192.168.50.76:5555 shell settings put secure accessibility_enabled 1
+adb -s 192.168.50.76:5555 shell appops set com.lucas.tv_home GET_USAGE_STATS allow
 ```
+
+Don't switch the service off and on to pick up changes: done repeatedly, it stops binding until
+the TV reboots. Reinstalling is enough for code changes; a changed `home_redirect.xml` takes
+effect after the next reboot.
+
+Home lands here after Android's ~5 s post-Home delay (covered by the wallpaper). The Recent apps
+button opens a launcher page instead, so it lands here in about a second.
 
 ## Logos
 
