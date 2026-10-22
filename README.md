@@ -3,6 +3,8 @@
 A calmer Fire TV: debloat scripts and a minimal Flutter launcher, built on an Insignia Fire TV
 (AFTDCT31, Fire OS 7.7.1.7).
 
+![The Simple FireTV home screen: clock and weather, a Spotify now-playing strip, and a dock of app logos over a mountain wallpaper](docs/home.jpg)
+
 - **`debloat/`**: removes or disables Amazon's ad, tracking and promo packages over ADB.
   `removed.log`, `disabled.log` and `restricted.log` record what was changed on the TV, and
   `restore.sh` undoes all of it.
