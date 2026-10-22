@@ -13,7 +13,8 @@ what kind of mark it is, because people read wordmarks like text and symbols lik
   width   Marks with no real area, like Prime's smile: given a width directly.
 
 NUDGES then adjusts individual marks by eye: `scale` multiplies the size, `dy` moves the mark
-down (design px). These are the case-by-case optical corrections no rule captures.
+down (design px). These are the case-by-case optical corrections no rule captures. A scaled
+wordmark keeps the shared baseline.
 
 Writes lib/mark_sizes.dart, build/marks.json, and build/marks-sheet.png: the marks in a dock row
 at true size, with the tile centre line (red) and the wordmark baseline and x-height (blue).
@@ -46,9 +47,12 @@ KINDS = {
 }
 WIDTHS = {"primevideo": 112.0}
 NUDGES: dict[str, dict[str, float]] = {
-    "netflix": {"scale": 0.9},  # tall and solid: reads larger than its area
+    "netflix": {"scale": 0.945},  # tall and solid: reads larger than its area
+    "youtube": {"scale": 1.1},  # wide and short: reads smaller than its area
     "jellyfin": {"scale": 0.9},  # bold triangle at full height towers over the row
     "disneyplus": {"scale": 1.08},  # thin script reads lighter than its silhouette
+    "hulu": {"scale": 0.875},  # heavy letters and tall ascenders read bigger than max
+    "primevideo": {"scale": 0.9},  # a long swoosh reads wider than its width
 }
 
 RENDER_PX = 2048
@@ -149,8 +153,10 @@ for svg in sorted(src_dir.glob("*.svg")):
 
     nudge = NUDGES.get(name, {})
     k = nudge.get("scale", 1.0)
+    # Symbols scale about their own placement; wordmarks stay on the shared baseline.
+    dy = X_HEIGHT / 2 - h * k / 2 if kind == "word" else dy * k
     m["width"], m["height"] = round(w * k, 2), round(h * k, 2)
-    m["dy"] = round(dy * k + nudge.get("dy", 0.0), 2)
+    m["dy"] = round(dy + nudge.get("dy", 0.0), 2)
     marks[name] = m
 
 lines = [
