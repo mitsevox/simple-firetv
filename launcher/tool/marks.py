@@ -47,7 +47,7 @@ KINDS = {
 }
 WIDTHS = {"primevideo": 112.0}
 NUDGES: dict[str, dict[str, float]] = {
-    "netflix": {"scale": 0.945},  # tall and solid: reads larger than its area
+    "netflix": {"scale": 1.04},  # tall and narrow: its height cap alone undersizes it
     "youtube": {"scale": 1.1},  # wide and short: reads smaller than its area
     "jellyfin": {"scale": 0.9},  # bold triangle at full height towers over the row
     "disneyplus": {"scale": 1.08},  # thin script reads lighter than its silhouette

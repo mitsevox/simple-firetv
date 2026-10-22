@@ -11,7 +11,7 @@ const markLayouts = <String, ({double width, double height, double dy})>{
   'hbomax': (width: 101.09, height: 27.74, dy: -0.37),
   'hulu': (width: 104.0, height: 34.34, dy: -3.67),
   'jellyfin': (width: 52.2, height: 52.2, dy: -2.71),
-  'netflix': (width: 30.19, height: 54.81, dy: 0.01),
+  'netflix': (width: 33.22, height: 60.32, dy: 0.01),
   'paramountplus': (width: 60.98, height: 48.62, dy: -1.12),
   'peacock': (width: 46.18, height: 58.0, dy: -0.34),
   'primevideo': (width: 100.8, height: 23.63, dy: 0.0),
