@@ -175,6 +175,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       if (event is KeyDownEvent) _back();
       return KeyEventResult.handled;
     }
+    final media = _mediaKeys[key];
+    if (media != null) {
+      if (event is KeyDownEvent) _mediaKey(media);
+      return KeyEventResult.handled;
+    }
     if (event is KeyUpEvent) return KeyEventResult.ignored;
     final (dx, dy) = switch (key) {
       LogicalKeyboardKey.arrowLeft => (-1, 0),
@@ -260,6 +265,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   /// Controls Spotify, or opens it when there's no session to control.
+  // The remote's media buttons control Spotify here; otherwise Fire OS hands them to another player.
+  static final _mediaKeys = {
+    LogicalKeyboardKey.mediaPlayPause: NowPlayingItem.playPause,
+    LogicalKeyboardKey.mediaPlay: NowPlayingItem.playPause,
+    LogicalKeyboardKey.mediaPause: NowPlayingItem.playPause,
+    LogicalKeyboardKey.mediaFastForward: NowPlayingItem.next,
+    LogicalKeyboardKey.mediaTrackNext: NowPlayingItem.next,
+    LogicalKeyboardKey.mediaRewind: NowPlayingItem.previous,
+    LogicalKeyboardKey.mediaTrackPrevious: NowPlayingItem.previous,
+  };
+
+  /// Play/pause opens Spotify when there's nothing to control; the skips then do nothing.
+  Future<void> _mediaKey(NowPlayingItem item) async {
+    final handled = switch (item) {
+      NowPlayingItem.previous => await _nowPlaying.previous(),
+      NowPlayingItem.next => await _nowPlaying.next(),
+      _ => await _nowPlaying.playPause(),
+    };
+    if (!handled && item == NowPlayingItem.playPause) AppStore.launch(spotifyPackage);
+  }
+
   Future<void> _activateNowPlaying() async {
     final handled = switch (_nowItem) {
       NowPlayingItem.info => false,
