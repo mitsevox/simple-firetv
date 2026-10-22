@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import 'apps.dart';
 import 'brands.dart';
+import 'now_playing.dart';
 import 'style.dart';
 import 'tiles.dart';
 import 'wallpaper.dart';
@@ -15,7 +16,7 @@ import 'weather.dart';
 
 /// Where remote focus is. Navigation is handled here directly rather than through Flutter's
 /// focus traversal, so it behaves exactly as specified: no wrapping, and Back steps out one level.
-enum Zone { dock, controls, allApps, settings, exitPrompt }
+enum Zone { dock, nowPlaying, controls, allApps, settings, exitPrompt }
 
 const _dockLeft = 208.0;
 // Bottom edge stays where CleanFrame's taller labelled dock ended (908).
@@ -60,6 +61,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final _apps = AppStore();
   final _wallpapers = WallpaperStore();
   final _weather = WeatherStore();
+  final _nowPlaying = NowPlayingStore();
   final _focus = FocusNode();
 
   Zone _zone = Zone.dock;
@@ -68,6 +70,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _gridIndex = 0;
   int _promptIndex = 0;
   int _settingsIndex = 0;
+  NowPlayingItem _nowItem = NowPlayingItem.playPause;
   double _dockOffset = 0;
   int _gridRowOffset = 0;
 
@@ -88,7 +91,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    for (final store in [_apps, _wallpapers, _weather]) {
+    for (final store in [_apps, _wallpapers, _weather, _nowPlaying]) {
       store.addListener(_changed);
     }
     _apps.load();
@@ -135,6 +138,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _changed() => setState(() {
+        // The strip's skip buttons go when it collapses.
+        if (!_nowPlaying.items.contains(_nowItem)) _nowItem = NowPlayingItem.playPause;
         _dockIndex = min(_dockIndex, max(0, _apps.dock.length - 1));
         _gridIndex = min(_gridIndex, max(0, _apps.all.length - 1));
       });
@@ -186,10 +191,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     switch (_zone) {
       case Zone.dock:
         if (dy < 0) {
-          _zone = Zone.controls;
+          _zone = Zone.nowPlaying;
+          _nowItem = NowPlayingItem.playPause;
         } else if (dx != 0 && _apps.dock.isNotEmpty) {
           _dockIndex = (_dockIndex + dx).clamp(0, _apps.dock.length - 1);
           _scrollDockToFocus();
+        }
+      case Zone.nowPlaying:
+        if (dy < 0) {
+          _zone = Zone.controls;
+        } else if (dy > 0) {
+          _zone = Zone.dock;
+        } else {
+          final items = _nowPlaying.items;
+          _nowItem = items[(items.indexOf(_nowItem) + dx).clamp(0, items.length - 1)];
         }
       case Zone.controls:
         if (dy > 0) {
@@ -230,6 +245,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     switch (_zone) {
       case Zone.dock:
         if (_apps.dock.isNotEmpty) AppStore.launch(_apps.dock[_dockIndex].package);
+      case Zone.nowPlaying:
+        _activateNowPlaying();
       case Zone.controls:
         _controls[_controlIndex].$3();
       case Zone.allApps:
@@ -243,6 +260,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  /// Controls Spotify, or opens it when there's no session to control.
+  Future<void> _activateNowPlaying() async {
+    final handled = switch (_nowItem) {
+      NowPlayingItem.info => false,
+      NowPlayingItem.previous => await _nowPlaying.previous(),
+      NowPlayingItem.playPause => await _nowPlaying.playPause(),
+      NowPlayingItem.next => await _nowPlaying.next(),
+    };
+    if (!handled) AppStore.launch(spotifyPackage);
+  }
+
   void _hold() {
     if (_zone == Zone.allApps && _apps.all.isNotEmpty) _apps.togglePin(_apps.all[_gridIndex].package);
   }
@@ -252,7 +280,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           case Zone.dock:
             _zone = Zone.exitPrompt;
             _promptIndex = 0;
-          case Zone.controls || Zone.exitPrompt:
+          case Zone.nowPlaying || Zone.controls || Zone.exitPrompt:
             _zone = Zone.dock;
           case Zone.allApps || Zone.settings:
             _zone = Zone.controls;
@@ -303,6 +331,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             Positioned(left: 112, top: 72, child: _clockAndWeather()),
             Positioned(right: 112, top: 72, child: _controlRow()),
+            Positioned(
+              left: _dockLeft,
+              top: nowPlayingTop,
+              width: _dockWidth,
+              height: nowPlayingHeight,
+              child: NowPlayingStrip(
+                store: _nowPlaying,
+                focused: _zone == Zone.nowPlaying ? _nowItem : null,
+                blurredWallpaper: _blurredWallpaper(),
+                tint: _glassTint,
+              ),
+            ),
             Positioned(left: _dockLeft, top: _dockTop, width: _dockWidth, height: dockTileHeight, child: _dock()),
             if (wallpaper != null && !panelOpen)
               Positioned(
@@ -388,13 +428,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _blurredWallpaper() => _wallpaperLayer((frame) => frame.blurred);
 
+  /// Darkens the dock and strip glass a little more over light wallpapers.
+  Color get _glassTint =>
+      const Color(0xFF080E12).withValues(alpha: (_wallpapers.frame?.info.light ?? false) ? .27 : .16);
+
   Widget _dock() {
     final dock = _apps.dock;
     final total = dock.length * dockTileWidth;
     final fadeLeft = _dockOffset > 0;
     final fadeRight = _dockOffset < total - _shelfWidth;
     final (fadeStops, fadeAlphas) = _fadeCurve();
-    final light = _wallpapers.frame?.info.light ?? false;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(48),
@@ -402,9 +445,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         children: [
           // Lines the blur up with the photo behind it, so the glass looks see-through.
           Positioned(left: -_dockLeft, top: -_dockTop, width: 1920, height: 1080, child: _blurredWallpaper()),
-          Positioned.fill(
-            child: ColoredBox(color: const Color(0xFF080E12).withValues(alpha: light ? .27 : .16)),
-          ),
+          Positioned.fill(child: ColoredBox(color: _glassTint)),
           // Spans the whole dock so anything scrolled out is cut by the dock's own edge, where the
           // fade has already taken it to nothing.
           Positioned.fill(

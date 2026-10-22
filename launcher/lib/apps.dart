@@ -10,6 +10,9 @@ class AppInfo {
   final Uint8List icon;
 }
 
+/// Spotify has the now-playing strip instead of a dock tile.
+const spotifyPackage = 'com.spotify.tv.android';
+
 /// Installed apps, plus which ones are on the dock. The dock is ordered by how much each app has
 /// been watched lately, most first; apps with no recent use keep the order they were added in.
 class AppStore extends ChangeNotifier {
@@ -27,7 +30,6 @@ class AppStore extends ChangeNotifier {
     'com.amazon.avod',
     'com.peacock.peacockfiretv',
     'com.cbs.ott',
-    'com.spotify.tv.android',
   ];
 
   List<AppInfo> all = [];
@@ -36,7 +38,7 @@ class AppStore extends ChangeNotifier {
 
   List<AppInfo> get dock {
     final byPackage = {for (final app in all) app.package: app};
-    final pinned = [for (final pkg in _pinned) ?byPackage[pkg]];
+    final pinned = [for (final pkg in _pinned) if (pkg != spotifyPackage) ?byPackage[pkg]];
     final added = {for (final (i, app) in pinned.indexed) app.package: i};
     return pinned
       ..sort((a, b) {

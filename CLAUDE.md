@@ -19,6 +19,10 @@ See README.md for what's here and how to build. The TV is an Insignia AFTDCT31 (
   Live TV, Settings, Recent apps and the app buttons first.
 - If `adb connect` says "No route to host" while ping works, `adb kill-server` and retry.
 - Release builds keep R8 off (it breaks shared_preferences).
+- To measure smoothness, temporarily print `SchedulerBinding.addTimingsCallback` timings from
+  `main.dart` and mark steps with `adb shell log -t FRAMEMARK <name>`. Baseline for the dock and
+  wallpaper fade is ~14 ms raster median, ~20 ms max. The helper `s` returns non-zero when there's
+  no output, so don't chain steps after it with `&&`.
 
 ## Design
 

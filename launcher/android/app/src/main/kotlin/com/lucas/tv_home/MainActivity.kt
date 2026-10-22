@@ -21,6 +21,7 @@ private const val DAY_MS = 24 * 60 * 60 * 1000L
 class MainActivity : FlutterActivity() {
     private val executor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var nowPlaying: NowPlaying? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -79,12 +80,27 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        val media = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "tv_home/media")
+        val now = NowPlaying(this, media).also { nowPlaying = it }
+        media.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "current" -> result.success(now.snapshot())
+                else -> result.success(now.handle(call.method))
+            }
+        }
+        now.start()
     }
 
     override fun onResume() {
         super.onResume()
         // Back on our home screen, so any pause for Amazon's screens is over.
         HomeRedirectService.resume(this)
+        nowPlaying?.start()
+    }
+
+    override fun onDestroy() {
+        nowPlaying?.stop()
+        super.onDestroy()
     }
 
     /**
