@@ -1,5 +1,6 @@
 package com.lucas.tv_home
 
+import android.app.usage.UsageStatsManager
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -12,8 +13,10 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
+import kotlin.math.pow
 
 private const val FIRE_SETTINGS = "com.amazon.tv.settings.v2"
+private const val DAY_MS = 24 * 60 * 60 * 1000L
 
 class MainActivity : FlutterActivity() {
     private val executor = Executors.newSingleThreadExecutor()
@@ -27,6 +30,10 @@ class MainActivity : FlutterActivity() {
                     "list" -> executor.execute {
                         val apps = listApps()
                         mainHandler.post { result.success(apps) }
+                    }
+                    "usage" -> executor.execute {
+                        val scores = usageScores()
+                        mainHandler.post { result.success(scores) }
                     }
                     "launch" -> {
                         val pkg = call.argument<String>("package")!!
@@ -78,6 +85,25 @@ class MainActivity : FlutterActivity() {
         super.onResume()
         // Back on our home screen, so any pause for Amazon's screens is over.
         HomeRedirectService.resume(this)
+    }
+
+    /**
+     * How much each app has been watched lately: minutes in the foreground over the last 30 days,
+     * from Android's own usage stats, with each day counting half as much for every week it's old.
+     * Empty until usage access is granted.
+     */
+    private fun usageScores(): Map<String, Double> {
+        val now = System.currentTimeMillis()
+        val stats = getSystemService(UsageStatsManager::class.java)
+            .queryUsageStats(UsageStatsManager.INTERVAL_DAILY, now - 30 * DAY_MS, now)
+            ?: return emptyMap()
+        val scores = HashMap<String, Double>()
+        for (day in stats) {
+            if (day.totalTimeInForeground <= 0) continue
+            val weeksOld = (now - day.lastTimeStamp).coerceAtLeast(0) / (7.0 * DAY_MS)
+            scores.merge(day.packageName, day.totalTimeInForeground / 60_000.0 * 0.5.pow(weeksOld), Double::plus)
+        }
+        return scores
     }
 
     /** Every launchable app, TV apps first, with its icon rendered to PNG for Flutter. */

@@ -10,7 +10,8 @@ class AppInfo {
   final Uint8List icon;
 }
 
-/// Installed apps, plus which ones are on the dock and in what order.
+/// Installed apps, plus which ones are on the dock. The dock is ordered by how much each app has
+/// been watched lately, most first; apps with no recent use keep the order they were added in.
 class AppStore extends ChangeNotifier {
   static const _channel = MethodChannel('tv_home/apps');
   static const _pinnedKey = 'pinned';
@@ -31,10 +32,17 @@ class AppStore extends ChangeNotifier {
 
   List<AppInfo> all = [];
   List<String> _pinned = [];
+  Map<String, double> _usage = {};
 
   List<AppInfo> get dock {
     final byPackage = {for (final app in all) app.package: app};
-    return [for (final pkg in _pinned) ?byPackage[pkg]];
+    final pinned = [for (final pkg in _pinned) ?byPackage[pkg]];
+    final added = {for (final (i, app) in pinned.indexed) app.package: i};
+    return pinned
+      ..sort((a, b) {
+        final byUse = (_usage[b.package] ?? 0).compareTo(_usage[a.package] ?? 0);
+        return byUse != 0 ? byUse : added[a.package]!.compareTo(added[b.package]!);
+      });
   }
 
   bool isPinned(String pkg) => _pinned.contains(pkg);
@@ -51,6 +59,7 @@ class AppStore extends ChangeNotifier {
         ),
     ]..sort((a, b) => a.label.toLowerCase().compareTo(b.label.toLowerCase()));
     _pinned = prefs.getStringList(_pinnedKey) ?? List.of(_defaultDock);
+    _usage = await _channel.invokeMapMethod<String, double>('usage') ?? {};
     notifyListeners();
   }
 

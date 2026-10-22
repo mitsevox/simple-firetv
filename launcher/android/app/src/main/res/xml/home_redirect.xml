@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- canRetrieveWindowContent lets the service check whether Amazon's Settings grid is showing.
      After this service is switched off and on, Amazon's launcher sends it no events until the next
-     screen change, so test from our home screen first. -->
+     screen change, so test from our home screen first. Switching it off and on repeatedly can stop
+     it binding at all until the TV reboots.
+     Remote keys can't be caught here: Home, Live TV, Settings, Recent apps, Alexa and the app
+     buttons are all handled by Fire OS before accessibility services see them. Recent apps opens a
+     launcher page, though, so it lands here in ~1 s with no Home-press delay. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewFocused"
     android:packageNames="com.amazon.tv.launcher,com.lucas.tv_home"

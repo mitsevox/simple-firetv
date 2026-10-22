@@ -112,10 +112,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      _apps.load();
+      _reloadApps();
       setState(() => _now = DateTime.now());
       _focus.requestFocus();
     }
+  }
+
+  /// Reloads apps (the dock may reorder by use) and keeps focus on the same app.
+  Future<void> _reloadApps() async {
+    final dock = _apps.dock;
+    final focused = dock.isEmpty ? null : dock[min(_dockIndex, dock.length - 1)].package;
+    await _apps.load();
+    setState(() {
+      _dockIndex = max(0, _apps.dock.indexWhere((app) => app.package == focused));
+      _scrollDockToFocus();
+    });
+  }
+
+  void _scrollDockToFocus() {
+    _dockOffset = _scrollToShow(_dockIndex * dockTileWidth, dockTileWidth, _dockOffset, _shelfWidth,
+        _apps.dock.length * dockTileWidth, margin: _dockFade - _shelfInset);
   }
 
   void _changed() => setState(() {
@@ -173,8 +189,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _zone = Zone.controls;
         } else if (dx != 0 && _apps.dock.isNotEmpty) {
           _dockIndex = (_dockIndex + dx).clamp(0, _apps.dock.length - 1);
-          _dockOffset = _scrollToShow(_dockIndex * dockTileWidth, dockTileWidth, _dockOffset, _shelfWidth,
-              _apps.dock.length * dockTileWidth, margin: _dockFade - _shelfInset);
+          _scrollDockToFocus();
         }
       case Zone.controls:
         if (dy > 0) {
