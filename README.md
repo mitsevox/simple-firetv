@@ -1,6 +1,7 @@
-# firetv-clean
+# Simple FireTV
 
-A cleaner Insignia Fire TV (AFTDCT31, Fire OS 7.7.1.7).
+A calmer Fire TV: debloat scripts and a minimal Flutter launcher, built on an Insignia Fire TV
+(AFTDCT31, Fire OS 7.7.1.7).
 
 - **`debloat/`**: removes or disables Amazon's ad, tracking and promo packages over ADB.
   `removed.log`, `disabled.log` and `restricted.log` record what was changed on the TV, and
@@ -11,11 +12,15 @@ A cleaner Insignia Fire TV (AFTDCT31, Fire OS 7.7.1.7).
 
 ## Build and install
 
+Turn on ADB debugging on the TV (Settings → My Fire TV → Developer options) and set `TV` to its
+address. The scripts in `debloat/` and `launcher/tool/` read the same variable.
+
 ```sh
+export TV=192.168.50.76:5555
 cd launcher
 flutter build apk --release --target-platform android-arm
-adb connect 192.168.50.76:5555
-adb -s 192.168.50.76:5555 install -r build/app/outputs/flutter-apk/app-release.apk
+adb connect $TV
+adb -s $TV install -r build/app/outputs/flutter-apk/app-release.apk
 ```
 
 The Home redirect is an accessibility service, the dock orders itself by usage stats, and the
@@ -23,10 +28,10 @@ now-playing strip reads Spotify's media session through a notification listener.
 once after the first install:
 
 ```sh
-adb -s 192.168.50.76:5555 shell settings put secure enabled_accessibility_services com.lucas.tv_home/com.lucas.tv_home.HomeRedirectService
-adb -s 192.168.50.76:5555 shell settings put secure accessibility_enabled 1
-adb -s 192.168.50.76:5555 shell appops set com.lucas.tv_home GET_USAGE_STATS allow
-adb -s 192.168.50.76:5555 shell cmd notification allow_listener com.lucas.tv_home/com.lucas.tv_home.MediaListener
+adb -s $TV shell settings put secure enabled_accessibility_services com.lucas.tv_home/com.lucas.tv_home.HomeRedirectService
+adb -s $TV shell settings put secure accessibility_enabled 1
+adb -s $TV shell appops set com.lucas.tv_home GET_USAGE_STATS allow
+adb -s $TV shell cmd notification allow_listener com.lucas.tv_home/com.lucas.tv_home.MediaListener
 ```
 
 Don't switch the service off and on to pick up changes: done repeatedly, it stops binding until
@@ -36,6 +41,9 @@ effect after the next reboot.
 Home lands here after Android's ~5 s post-Home delay (covered by the wallpaper). Two other
 buttons are quicker because they don't trigger that delay: Recent apps (~1 s) and Live TV (~2 s,
 after Amazon's guide shows its loading screen). Live TV no longer opens the guide.
+
+The weather under the clock is for the spot set as `weatherLocation` in
+`launcher/lib/weather.dart` (null hides it).
 
 ## Now playing
 
@@ -58,3 +66,5 @@ measures the result from a real TV screenshot (see its docstring for the check b
 
 Wallpapers are from Unsplash, logos from Simple Icons (CC0) and Custom Brand Icons (MIT), and the
 font is Manrope (OFL); licenses are alongside them in `launcher/assets`.
+
+The code is MIT licensed (see `LICENSE`); the bundled assets keep their own licenses.

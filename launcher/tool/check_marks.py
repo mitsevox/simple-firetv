@@ -12,6 +12,7 @@ build/marks.json from tool/marks.py. Exits non-zero if anything is off by more t
 
 import io
 import json
+import os
 import re
 import subprocess
 import sys
@@ -21,7 +22,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-TV = "192.168.50.76:5555"
+TV = os.environ.get("TV", "192.168.50.76:5555")
 TOLERANCE = 1.0  # px; antialiasing alone can account for up to one pixel at an edge
 INK_THRESHOLD = 0.08  # fraction of full brightness counted as ink, as in tool/marks.py
 
